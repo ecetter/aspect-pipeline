@@ -1,0 +1,114 @@
+#!/bin/bash
+
+
+# Job resource directives
+#SBATCH -J build_base-dealii
+#SBATCH -A open
+#SBATCH -p open
+#SBATCH -t 2:00:00
+#SBATCH -N 1
+#SBATCH -n 24
+#SBATCH --mem 64G
+#SBATCH -o slurm-%x-%j.out
+
+
+####
+#### NOTE: Observed build times vs. number of tasks used (-n directive)
+####
+####            n     time
+####            16    ~70 min
+####            24    ~60 min
+####            
+####
+
+
+# Configuration information for definition file and container
+BASENAME="base-dealii"                                     # base name of definition file
+BASE_DIR=$(echo $(cd ..; pwd))                             # set base directory of pipeline
+DEFINITION="${BASENAME}.def"                               # definition filename
+DEFINITION_FULL="${BASE_DIR}/definitions/${DEFINITION}"    # full path to definition file
+TAG=""                                                     # differentiator, just leave blank to use BASENAME
+TYPE="sif"                                                 # either "sb" (writable sandbox) or "sif" (image)"
+CONTAINER="${BASENAME}${TAG}.${TYPE}"                      # container filename
+CONTAINER_FULL="${BASE_DIR}/containers/${CONTAINER}"       # full path to container
+
+
+# Specify bind paths, if necessary
+BIND_HOST=""
+BIND_LOCAL=""
+
+if [[ -z "${BIND_HOST}" && -z "${BIND_PATH}" ]]; then
+    BIND_STATEMENT=""
+    echo ""
+    echo "No bind paths are set. Ignoring '--bind' option."
+    echo ""
+elif [[ -z "${BIND_HOST}" || -z "${BIND_LOCAL}" ]]; then
+    echo ""
+    if [[ ! -d "${BIND_HOST}" ]]; then echo "ERROR:  Host bind path ${BIND_HOST} does not exist on host."; fi
+    echo "ERROR:  If using a bind argument, both host and local (container) locations must be set properly."
+    echo "        Verify that both or neither bind paths are set and that the host bind path exist on the host."
+    echo ""
+    exit 1;
+else
+    BIND_STATEMENT="--build-arg ASPECT_SRC_LOCAL=${BIND_LOCAL} --bind ${BIND_HOST}:${BIND_LOCAL}"
+    echo ""
+    echo "Bind paths set, using the following bind statement:  ${BIND_STATEMENT}"
+    echo ""
+fi
+
+
+# Load MPI on host
+module use /storage/group/tqm5707/default/stack/modules
+module load intel/2025.3 mpi
+
+
+# Verify existence of definition file
+if [[ ! -f "${DEFINITION_FULL}" ]]; then
+    echo ""
+    echo "Definition file ${DEFINITION_FULL} not found. Please verify its name and location."
+    echo ""
+    exit 1
+fi
+
+
+# Set container type
+if [[ "${TYPE}" == "sb" ]]; then
+    SANDBOX="s"
+elif [[ "${TYPE}" == "sif" ]]; then
+    SANDBOX=""
+else
+    echo ""
+    echo "ERROR:  Failed to properly set container type (sandbox or image)."
+    echo ""
+    exit 1
+fi
+
+
+# Build container
+start_time=$(date +%s)
+apptainer build -f${SANDBOX} --build-arg TASKS=${SLURM_NTASKS} ${BIND_STATEMENT} ${CONTAINER_FULL} ${DEFINITION_FULL}
+
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "  SUCCESS:  Container ${CONTAINER} built using definition file ${DEFINITION}."
+    echo ""
+    echo "                Definition location:  ${DEFINITION_FULL}"
+    echo "                Container location:   ${CONTAINER_FULL}"
+    echo ""
+    echo ""
+else
+    echo ""
+    echo "  FAILED:  Container build failed."
+    echo ""
+fi
+
+
+# Determine build time
+end_time=$(date +%s)
+duration=$(( end_time - start_time ))
+hours=$(( duration / 3600 ))
+minutes=$(( ( duration % 3600 ) / 60 ))
+seconds=$(( duration % 60 ))
+echo "Build Duration: $hours hr, $minutes min, $seconds sec    ( $duration sec )  "
+

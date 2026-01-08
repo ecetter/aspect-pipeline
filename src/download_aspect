@@ -1,0 +1,5 @@
+#!/bin/bash
+
+ASPECT_VERSION=3.0.0
+wget https://github.com/geodynamics/aspect/releases/download/v${ASPECT_VERSION}/aspect-${ASPECT_VERSION}.tar.gz
+tar -xvzf aspect-${ASPECT_VERSION}.tar.gz

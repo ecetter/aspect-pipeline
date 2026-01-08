@@ -1,0 +1,35 @@
+#!/bin/bash
+
+
+# Check if exactly one argument is provided
+if [[ "$#" -ne 1 ]]; then
+    echo ""
+    echo "Error: This script requires exactly one input argument." >&2
+    echo "       Please provide the container to launch."
+    echo "Usage: $0 <argument>" >&2
+    echo ""
+    exit 1
+fi
+
+
+# Load host/container compatible MPI
+module use /storage/group/tqm5707/default/stack/modules
+module load intel/2025.3 mpi
+
+
+# Initiate shell within writable container
+container="$1"
+
+if [[ -d "${container}" ]]; then
+    echo ""
+    echo "Container ${container} found. Launching now in writable mode..."
+    echo ""
+    apptainer shell -fw "${container}"
+    if [[ $? -ne 0 ]]; then echo "Launch failed. Ensure that the container is a sandbox container."; fi
+else
+    echo ""
+    echo "Container ${container} not found. Please verify its existence"
+    echo ""
+    exit 1
+fi
+

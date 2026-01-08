@@ -1,0 +1,20 @@
+
+# ignore autosave files
+*~
+
+# ignore build outputs
+build/slurm-*.out
+build/previous_builds/slurm-*.out
+
+# ignore containers since the file sizes are too large
+containers/*.sif
+containers/*.sb
+containers/*.bkp
+
+# ignore downloaded tar files and source code
+src/*.tar.gz
+src/aspect-*
+
+# ignore test outputs
+test/slurm-*.out
+test/*/slurm-*.out

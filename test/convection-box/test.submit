@@ -1,0 +1,87 @@
+#!/bin/bash
+
+#SBATCH -J test_aspect
+#SBATCH -A open
+#SBATCH -p open
+#SBATCH -t 00:30:00
+#SBATCH -N 1
+#SBATCH -n 24
+#SBATCH --mem 64G
+#SBATCH -o slurm-%x-%j.out
+
+
+start_time=$(date +%s)
+
+module use /storage/group/tqm5707/default/stack/modules
+module load intel/2025.3 mpi
+
+
+# Find base aspect-pipeline directory
+TARGET_DIR_NAME="aspect-pipeline"
+CURRENT_DIR=$(pwd -P)
+REPO_BASE_DIR=""
+while [[ "${CURRENT_DIR}" != "/" ]]; do
+    if [[ "$(basename "${CURRENT_DIR}")" == "${TARGET_DIR_NAME}" ]]; then
+        REPO_BASE_DIR="${CURRENT_DIR}"
+        break
+    fi
+    CURRENT_DIR=$(dirname "${CURRENT_DIR}")
+done
+
+if [[ -z "${REPO_BASE_DIR}" ]]; then
+    echo ""
+    echo "WARNING:  Repo's base directory named '${TARGET_DIR_NAME}' could not be found at any level above this directory."
+    echo "          This is fine if the script is configured to not rely upon the REPO_BASE_DIR variable."
+    echo ""
+    exit 1
+elif [[ ! -z "${REPO_BASE_DIR}" ]]; then
+    echo ""
+    echo "Repo's base directory (REPO_BASE_DIR) is found to be ${REPO_BASE_DIR}."
+    echo ""
+fi
+
+
+# Specify the container to be used, the test to run, and the launch command
+CONTAINER="${REPO_BASE_DIR}/containers/additive-aspect.sif"   # container filename
+TEST="aspect convection-box.prm"
+COMMAND="mpirun -n ${SLURM_NTASKS} apptainer exec ${CONTAINER} ${TEST}"
+
+
+# Verify existence of container file
+if [[ ! -f "${CONTAINER}" ]]; then
+    echo ""
+    echo "Definition file ${CONTAINER} not found. Please verify its name and location."
+    echo ""
+    exit 1
+fi
+
+
+# Run test
+echo "Running the following test:"
+echo ""
+echo "    ${COMMAND}"
+echo ""
+${COMMAND}
+
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "  SUCCESS:  Test with container ${CONTAINER} completed successfully."
+    echo ""
+else
+    echo ""
+    echo "  FAILED:  Test failed."
+    echo ""
+fi
+
+
+# Determine build time
+end_time=$(date +%s)
+duration=$(( end_time - start_time ))
+hours=$(( duration / 3600 ))
+minutes=$(( ( duration % 3600 ) / 60 ))
+seconds=$(( duration % 60 ))
+echo ""
+echo "Test Command:  ${COMMAND}"
+echo "Test Duration: $hours hr, $minutes min, $seconds sec    ( $duration sec )  "
+echo ""

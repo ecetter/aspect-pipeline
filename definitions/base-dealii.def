@@ -1,0 +1,155 @@
+
+
+Bootstrap: docker
+From: intel/oneapi-hpckit:2025.3.0-0-devel-ubuntu24.04
+
+
+# Pulling a base container of Intel's HPC Toolkit from Docker that matches the version of Intel's HPC Toolkit installed in the group software stack on the host system.
+# For scalable parallelization using containers, the MPI installation within the container must match the MPI available on the host system.
+# Dependencies for both deal.II and for ASPECT are then installed within this base container.
+# Lastly, deal.II is then installed within this base container such that it can be subsequently bootstrapped for building an ASPECT container.
+# Stacking the ASPECT container builds upon this base container makes the build process more efficient for building modified ASPECT versions. 
+
+
+%arguments
+
+	# This section defines default variables for the build process
+
+	TASKS=1    # set default number of tasks to 1 but can pass in another value via build command
+
+
+%setup
+
+	# This section runs commands on the host system after the base OS is installed
+
+	# Make directories to accept external mounts
+	mkdir -p ${APPTAINER_ROOTFS}/storage/home
+	mkdir -p ${APPTAINER_ROOTFS}/storage/work
+	mkdir -p ${APPTAINER_ROOTFS}/storage/group
+	mkdir -p ${APPTAINER_ROOTFS}/storage/icds
+	mkdir -p ${APPTAINER_ROOTFS}/scratch
+
+	# Set some useful aliases
+	echo 'alias ls="ls --color=auto"' >> ${SINGULARITY_ROOTFS}/root/.bashrc
+	echo 'alias ll="ls -la --color=auto"' >> ${SINGULARITY_ROOTFS}/root/.bashrc
+
+
+%environment
+
+	# This section sets environment variables to be used at runtime
+
+	export PS1="\[\e[1;34m\]\A \[\e[0m\] [\$APPTAINER_NAME] \[\e[0;36m\]\h\[\e[0m\]: \[\e[0;36m\]\w\[\e[0m\]]: "
+	export SINGULARITY_SHELL=/bin/bash
+	export BASH_ENV=/etc/bash.bashrc
+	export DEBIAN_FRONTEND=noninteractive
+	
+
+%post -c /bin/bash
+	
+	# This section runs commands inside the container at build time
+
+	echo "Building deal.II (using candii) and its dependencies using {{ TASKS }} tasks..."
+	
+	# Set up system-level dependencies
+	apt -y update
+
+	pkg_list="apt-utils
+	    autoconf
+	    automake
+	    bc
+	    build-essential
+	    cmake
+	    emacs
+	    git
+	    kmod
+	    libblas3
+	    libblas-dev
+	    libboost-all-dev
+	    libgmp-dev
+	    liblapack3
+	    liblapack-dev
+	    libsuitesparse-dev
+	    libtool
+	    linux-headers-6.14.0-35-generic
+	    locales
+	    lsb-release
+	    m4
+	    numdiff
+	    python3
+	    subversion
+	    wget
+	    zlib1g-dev"
+
+	# Verify the system-level dependency packages
+	for pkg in $pkg_list; do
+	    apt show "$pkg" > /dev/null 2>&1 && echo "✓ $pkg" || echo "✗ $pkg"
+	done
+
+	# Install the system-level dependencies
+	apt -y install $( echo "$pkg_list" )
+
+
+	#################################################
+	####
+	#### ----> install packages one by one if necessary
+	#### for pkg in $pkg_list; do
+	####     apt -y install "$pkg"
+	#### done
+	####
+	#################################################
+
+	#################################################
+	####
+	#### ----> upgrading will attempt to upgrade intel as well, which could be problematic
+	####       leaving here as a placeholder for future upgrades
+	#### apt -y upgrade
+	####
+	#################################################
+
+
+	# Set locale to resolve warnings
+	locale-gen en_US.UTF-8
+
+	# Download candii and use it to install deal.II
+	mkdir /opt/src && cd /opt/src
+	git clone https://github.com/dealii/candi
+	cd candi
+	wget https://raw.githubusercontent.com/geodynamics/aspect/refs/heads/main/contrib/install/local.cfg
+	#echo "MKL=ON" >> local.cfg
+	./candi.sh -y -j {{ TASKS }} -p /opt/candi
+	source /opt/candi/configuration/deal.II-v*
+	source /opt/candi/configuration/enable.sh	
+
+
+%runscript
+	#!/bin/bash
+
+	# This section defines what happens when the container is executed
+
+	source /opt/candi/configuration/deal.II-v*
+	source /opt/candi/configuration/enable.sh
+
+
+%test
+	#!/bin/bash
+	
+	# This section runs at the very end of the build process to verify container configuration
+
+	# Test if deal.II is locatable
+	source /opt/candi/configuration/deal.II-v*
+        source /opt/candi/configuration/enable.sh
+	if [[ -n "${DEAL_II_DIR}" ]]; then
+	   echo ""
+           echo "DEAL_II_DIR is set to ${DEAL_II_DIR}"
+	   if [[ ! -d "${DEAL_II_DIR}" ]]; then
+	      echo "  ERROR:  The DEAL_II_DIR location does not exist."
+	      exit 1
+	   fi
+	   echo ""
+	else
+	   echo ""
+	   echo "DEAL_II_DIR is not set, test failed."
+           echo ""
+	   exit 1
+    	fi
+

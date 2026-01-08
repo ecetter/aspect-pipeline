@@ -1,0 +1,140 @@
+
+
+Bootstrap: localimage
+From: ../containers/base-dealii.sif
+
+
+# Pulling the base container that already has ASPECT's dependencies, including deal.II, installed and configured.
+# Stacking the ASPECT container builds upon this base container makes the build process more efficient for building modified ASPECT versions. 
+
+
+%arguments
+
+	# This section defines default variables for the build process
+
+	ASPECT_VERSION=3.0.0
+	
+	ASPECT_SRC_LOCAL=""
+	ASPECT_SRC_HOST=""
+
+	TASKS=1    # set default number of tasks to 1 but can pass in another value via build command
+
+
+%setup
+
+	# This section runs commands on the host system after the base OS is installed
+
+	# Make directories to accept external mounts
+	mkdir -p ${APPTAINER_ROOTFS}/storage/home
+	mkdir -p ${APPTAINER_ROOTFS}/storage/work
+	mkdir -p ${APPTAINER_ROOTFS}/storage/group
+	mkdir -p ${APPTAINER_ROOTFS}/storage/icds
+	mkdir -p ${APPTAINER_ROOTFS}/scratch
+	mkdir -p ${APPTAINER_ROOTFS}{{ ASPECT_SRC_LOCAL }}
+
+
+%files
+
+	# This section copies files from the host system into the container image during the build process
+
+	{{ ASPECT_SRC_HOST }}/* {{ ASPECT_SRC_LOCAL }}
+
+
+%environment
+
+	# This section sets environment variables to be used at runtime
+
+	export PS1="\[\e[1;34m\]\A \[\e[0m\] [\$APPTAINER_NAME] \[\e[0;36m\]\h\[\e[0m\]: \[\e[0;36m\]\w\[\e[0m\]]: "
+	export SINGULARITY_SHELL=/bin/bash
+	export BASH_ENV=/etc/bash.bashrc
+
+
+%post -c /bin/bash
+
+	# This section runs commands inside the container at build time
+
+	echo "Files copied from Host (location {{ ASPECT_SRC_HOST }}) to Local (location {{ ASPECT_SRC_LOCAL }}):"
+	ls -la {{ ASPECT_SRC_LOCAL }}
+
+	echo "Building ASPECT (version {{ ASPECT_VERSION }}) using {{ TASKS }} tasks..."
+
+	# Set some useful aliases
+	export DEBIAN_FRONTEND=noninteractive
+	echo 'alias ls="ls --color=auto"' >> ${SINGULARITY_ROOTFS}/root/.bashrc
+	echo 'alias ll="ls -la --color=auto"' >> ${SINGULARITY_ROOTFS}/root/.bashrc
+
+	# Set up deal.II
+	source /opt/candi/configuration/deal.II-v*
+	source /opt/candi/configuration/enable.sh
+
+	# Download ASPECT and install
+
+	if [[ -z "{{ ASPECT_SRC_HOST }}" || -z "{{ ASPECT_SRC_LOCAL }}" ]]; then
+	   ASPECT_ROOT=/opt/src/aspect
+	   echo ""
+	   echo "ASPECT_SRC_HOST and/or ASPECT_SRC_LOCAL not set, so downloading ASPECT version {{ ASPECT_VERSION }} from Github to the following location:  ${ASPECT_ROOT}"
+	   echo ""
+	   cd /opt/src
+	   wget https://github.com/geodynamics/aspect/releases/download/v{{ ASPECT_VERSION }}/aspect-{{ ASPECT_VERSION }}.tar.gz
+	   tar -xvzf aspect-{{ ASPECT_VERSION }}.tar.gz
+	   ln -s aspect-{{ ASPECT_VERSION }} aspect
+	else
+	   ASPECT_ROOT={{ ASPECT_SRC_LOCAL }}
+	   echo "ASPECT_ROOT = ${ASPECT_ROOT}"
+	fi
+
+	# Assuming build command binds external ASPECT source code location to /opt/src/aspect directory
+	if [[ ! -d "${ASPECT_ROOT}" ]]; then
+	   echo ""
+	   echo "ASPECT source code directory [ ${ASPECT_ROOT} ] does not exist."
+	   echo "Please ensure that the build command binds this location to the ASPECT source code directory on the host."
+	   echo ""
+	   exit 1
+	fi
+
+	cd ${ASPECT_ROOT}
+
+	NOW=$(date +"%Y%m%d%H%M%S")
+	BUILD="build_${NOW}"
+	BUILD_DIR="${ASPECT_ROOT}/${BUILD}"
+
+	echo ""
+	echo "Now building ASPECT from ${ASPECT_ROOT} in the following location:  ${BUILD_DIR}"
+	echo ""
+	
+	mkdir "${BUILD_DIR}"; cd "${BUILD_DIR}"; cmake ..
+	make -j {{ TASKS }}
+
+	# Set some links for ease of use
+	ln -s ${BUILD_DIR}/aspect-release /usr/local/bin/aspect
+	ln -s ${BUILD_DIR}/aspect-release /usr/local/bin/aspect-release
+	ln -s ${BUILD_DIR} /opt/aspect
+	
+
+%runscript
+
+	# This section defines what happens when the container is executed
+
+	echo ""
+    	echo "ASPECT-{{ ASPECT_VERSION }} container is now running."
+	echo ""
+
+
+%test
+
+	# This section runs at the very end of the build process to verify container configuration
+
+	# Test if ASPECT is installed and runnable
+    	if aspect --version >/dev/null 2>&1; then
+	   echo ""
+           echo "ASPECT is installed."
+	   echo ""
+           aspect --version
+	   echo ""
+    	else
+	   echo ""
+	   echo "ASPECT not found, test failed."
+           echo ""
+	   exit 1
+    	fi
+
