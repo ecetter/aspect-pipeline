@@ -32,6 +32,10 @@ From: ../containers/base-dealii.sif
 	mkdir -p ${APPTAINER_ROOTFS}/scratch
 	mkdir -p ${APPTAINER_ROOTFS}{{ ASPECT_SRC_LOCAL }}
 
+	# Set some useful aliases
+	echo 'alias ls="ls --color=auto"' >> ${SINGULARITY_ROOTFS}/root/.bashrc
+	echo 'alias ll="ls -la --color=auto"' >> ${SINGULARITY_ROOTFS}/root/.bashrc
+
 
 %files
 
@@ -47,40 +51,40 @@ From: ../containers/base-dealii.sif
 	export PS1="\[\e[1;34m\]\A \[\e[0m\] [\$APPTAINER_NAME] \[\e[0;36m\]\h\[\e[0m\]: \[\e[0;36m\]\w\[\e[0m\]]: "
 	export SINGULARITY_SHELL=/bin/bash
 	export BASH_ENV=/etc/bash.bashrc
+	export DEBIAN_FRONTEND=noninteractive
 
 
 %post -c /bin/bash
 
 	# This section runs commands inside the container at build time
 
-	echo "Files copied from Host (location {{ ASPECT_SRC_HOST }}) to Local (location {{ ASPECT_SRC_LOCAL }}):"
-	ls -la {{ ASPECT_SRC_LOCAL }}
-
-	echo "Building ASPECT (version {{ ASPECT_VERSION }}) using {{ TASKS }} tasks..."
-
-	# Set some useful aliases
-	export DEBIAN_FRONTEND=noninteractive
-	echo 'alias ls="ls --color=auto"' >> ${SINGULARITY_ROOTFS}/root/.bashrc
-	echo 'alias ll="ls -la --color=auto"' >> ${SINGULARITY_ROOTFS}/root/.bashrc
-
 	# Set up deal.II
 	source /opt/candi/configuration/deal.II-v*
 	source /opt/candi/configuration/enable.sh
 
-	# Download ASPECT and install
+	# Download ASPECT and install if no version is provided
 
 	if [[ -z "{{ ASPECT_SRC_HOST }}" || -z "{{ ASPECT_SRC_LOCAL }}" ]]; then
+
 	   ASPECT_ROOT=/opt/src/aspect
+
 	   echo ""
-	   echo "ASPECT_SRC_HOST and/or ASPECT_SRC_LOCAL not set, so downloading ASPECT version {{ ASPECT_VERSION }} from Github to the following location:  ${ASPECT_ROOT}"
+	   echo "ASPECT_SRC_HOST and/or ASPECT_SRC_LOCAL not set, so no ASPECT source code was copied into local container space from host."
+	   echo "Downloading ASPECT version {{ ASPECT_VERSION }} from GitHub to the following location:  ${ASPECT_ROOT}"
 	   echo ""
+
 	   cd /opt/src
 	   wget https://github.com/geodynamics/aspect/releases/download/v{{ ASPECT_VERSION }}/aspect-{{ ASPECT_VERSION }}.tar.gz
 	   tar -xvzf aspect-{{ ASPECT_VERSION }}.tar.gz
 	   ln -s aspect-{{ ASPECT_VERSION }} aspect
+
 	else
+
 	   ASPECT_ROOT={{ ASPECT_SRC_LOCAL }}
 	   echo "ASPECT_ROOT = ${ASPECT_ROOT}"
+	   echo "Files copied from Host (location {{ ASPECT_SRC_HOST }}) to Local (location {{ ASPECT_SRC_LOCAL }}):"
+	   ls -la {{ ASPECT_SRC_LOCAL }}
+
 	fi
 
 	# Assuming build command binds external ASPECT source code location to /opt/src/aspect directory
@@ -91,6 +95,9 @@ From: ../containers/base-dealii.sif
 	   echo ""
 	   exit 1
 	fi
+
+	# Build ASPECT
+	echo "Building ASPECT (version {{ ASPECT_VERSION }}) using {{ TASKS }} tasks..."
 
 	cd ${ASPECT_ROOT}
 
