@@ -2,23 +2,30 @@
 
 #SBATCH -J test_aspect
 #SBATCH -A open
-#SBATCH -p open
-#SBATCH -t 24:00:00
+#SBATCH -p basic
+#SBATCH -t 1:00:00
 #SBATCH -N 1
 #SBATCH -n 24
 #SBATCH --mem 64G
 #SBATCH -o slurm-%x-%j.out
 
 
-start_time=$(date +%s)
-
-module use /storage/group/tqm5707/default/stack/modules
-module load intel/2025.3 mpi
+# Find base aspect-pipeline directory
+TARGET_DIR_NAME="aspect-pipeline"
+CURRENT_DIR=$(pwd -P)
+REPO_BASE_DIR=""
+while [[ "${CURRENT_DIR}" != "/" ]]; do
+    if [[ "$(basename "${CURRENT_DIR}")" == "${TARGET_DIR_NAME}" ]]; then
+        REPO_BASE_DIR="${CURRENT_DIR}"
+        break
+    fi
+    CURRENT_DIR=$(dirname "${CURRENT_DIR}")
+done
 
 
 # Specify the container to be used, the test to run, and the launch command
-CONTAINER="custom-aspect-3.0.0.sif"   # container filename
-TEST="aspect /opt/src/aspect/cookbooks/convection_box_3d/convection_box_3d.prm"
+CONTAINER="${REPO_BASE_DIR}/containers/additive-aspect-3.0.0.sif"   # container filename
+TEST="aspect /opt/src/aspect/cookbooks/convection-box/convection-box.prm"
 COMMAND="mpirun -n ${SLURM_NTASKS} apptainer exec ${CONTAINER} ${TEST}"
 
 
@@ -31,7 +38,13 @@ if [[ ! -f "${CONTAINER}" ]]; then
 fi
 
 
+# Load MPI on host
+module use /storage/group/tqm5707/default/stack/modules
+module load intel/2025.3 mpi
+
+
 # Run test
+start_time=$(date +%s)
 echo "Running the following test:"
 echo ""
 echo "    ${COMMAND}"
