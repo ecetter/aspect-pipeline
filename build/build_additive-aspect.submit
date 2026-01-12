@@ -4,10 +4,10 @@
 # Job resource directives
 #SBATCH -J build_additive-aspect
 #SBATCH -A open
-#SBATCH -p open
+#SBATCH -p basic
 #SBATCH -t 1:00:00
 #SBATCH -N 1
-#SBATCH -n 24
+#SBATCH -n 16
 #SBATCH --mem 64G
 #SBATCH -o slurm-%x-%j.out
 
@@ -16,50 +16,57 @@
 #### NOTE: Observed build times vs. number of tasks used (-n directive)
 ####
 ####            n     time
+####            16    ~ min
 ####            24    ~20 min
-####            
 ####
 
 
+# Find base aspect-pipeline directory
+TARGET_DIR_NAME="aspect-pipeline"
+CURRENT_DIR=$(pwd -P)
+REPO_BASE_DIR=""
+while [[ "${CURRENT_DIR}" != "/" ]]; do
+    if [[ "$(basename "${CURRENT_DIR}")" == "${TARGET_DIR_NAME}" ]]; then
+        REPO_BASE_DIR="${CURRENT_DIR}"
+        break
+    fi
+    CURRENT_DIR=$(dirname "${CURRENT_DIR}")
+done
+
+
 # Configuration information for definition file and container
-BASENAME="additive-aspect"                                 # base name of definition file
-BASE_DIR=$(echo $(cd ..; pwd))                             # set base directory of pipeline
-DEFINITION="${BASENAME}.def"                               # definition filename
-DEFINITION_FULL="${BASE_DIR}/definitions/${DEFINITION}"    # full path to definition file
-TAG=""                                                     # differentiator, just leave blank to use BASENAME
-TYPE="sif"                                                 # either "sb" (writable sandbox) or "sif" (image)"
-CONTAINER="${BASENAME}${TAG}.${TYPE}"                      # container filename
-CONTAINER_FULL="${BASE_DIR}/containers/${CONTAINER}"       # full path to container
+BASENAME="additive-aspect"                                      # base name of definition file
+REPO_BASE_DIR=$(echo $(cd ..; pwd))                             # set base directory of pipeline
+DEFINITION="${BASENAME}.def"                                    # definition filename
+DEFINITION_FULL="${REPO_BASE_DIR}/definitions/${DEFINITION}"    # full path to definition file
+TAG=""                                                          # differentiator, just leave blank to use BASENAME
+TYPE="sif"                                                      # either "sb" (writable sandbox) or "sif" (image)"
+CONTAINER="${BASENAME}${TAG}.${TYPE}"                           # container filename
+CONTAINER_FULL="${REPO_BASE_DIR}/containers/${CONTAINER}"       # full path to container
 
 
-# Specify bind paths, if necessary
-BIND_HOST="${BASE_DIR}/src/aspect"
-BIND_LOCAL="/opt/src/aspect"
+# Specify ASPECT source code paths, if necessary
+SRC_HOST="${REPO_BASE_DIR}/src/aspect"
+SRC_LOCAL="/opt/src/aspect"
 
-if [[ -z "${BIND_HOST}" && -z "${BIND_PATH}" ]]; then
-    BIND_STATEMENT=""
+if [[ -z "${SRC_HOST}" && -z "${SRC_PATH}" ]]; then
+    SRC_STATEMENT=""
     echo ""
-    echo "No bind paths are set. Ignoring '--bind' option."
+    echo "No ASPECT source code paths are set. No external ASPECT source code will be used."
     echo ""
-elif [[ -z "${BIND_HOST}" || -z "${BIND_LOCAL}" ]]; then
+elif [[ -z "${SRC_HOST}" || -z "${SRC_LOCAL}" ]]; then
     echo ""
-    if [[ ! -d "${BIND_HOST}" ]]; then echo "ERROR:  Host bind path ${BIND_HOST} does not exist on host."; fi
-    echo "ERROR:  If using a bind argument, both host and local (container) locations must be set properly."
-    echo "        Verify that both or neither bind paths are set and that the host bind path exist on the host."
+    if [[ ! -d "${SRC_HOST}" ]]; then echo "ERROR:  Host ASPECT source code path ${SRC_HOST} does not exist on host."; fi
+    echo "ERROR:  If using ASPECT source code from host, both host and local (container) locations must be set properly."
+    echo "        Verify that both or neither source code paths are set and that the host source code path exists on the host."
     echo ""
     exit 1;
 else
-    BIND_STATEMENT="--build-arg ASPECT_SRC_LOCAL=${BIND_LOCAL} --build-arg ASPECT_SRC_HOST=${BIND_HOST}"
-    #BIND_STATEMENT="--build-arg ASPECT_SRC_LOCAL=${BIND_LOCAL} --bind ${BIND_HOST}:${BIND_LOCAL}"
+    SRC_STATEMENT="--build-arg ASPECT_SRC_LOCAL=${SRC_LOCAL} --build-arg ASPECT_SRC_HOST=${SRC_HOST}"
     echo ""
-    echo "Bind paths set, using the following bind statement:  ${BIND_STATEMENT}"
+    echo "ASPECT source code paths are set, using the following statement:  ${SRC_STATEMENT}"
     echo ""
 fi
-
-
-# Load MPI on host
-module use /storage/group/tqm5707/default/stack/modules
-module load intel/2025.3 mpi
 
 
 # Verify existence of definition file
@@ -84,9 +91,14 @@ else
 fi
 
 
+# Load MPI on host
+module use /storage/group/tqm5707/default/stack/modules
+module load intel/2025.3 mpi
+
+
 # Build container
 start_time=$(date +%s)
-apptainer build -f${SANDBOX} --build-arg TASKS=${SLURM_NTASKS} ${BIND_STATEMENT} ${CONTAINER_FULL} ${DEFINITION_FULL}
+apptainer build -f${SANDBOX} --build-arg TASKS=${SLURM_NTASKS} ${SRC_STATEMENT} ${CONTAINER_FULL} ${DEFINITION_FULL}
 
 
 if [ $? -eq 0 ]; then
