@@ -16,9 +16,7 @@
 #### NOTE: Observed build times vs. number of tasks used (-n directive)
 ####
 ####            n     time
-####            16    ~70 min
-####            24    ~60 min
-####            
+####            16    ~55 min
 ####
 
 
