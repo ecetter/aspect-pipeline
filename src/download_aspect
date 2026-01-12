@@ -1,5 +1,49 @@
 #!/bin/bash
 
+
 ASPECT_VERSION=3.0.0
-wget https://github.com/geodynamics/aspect/releases/download/v${ASPECT_VERSION}/aspect-${ASPECT_VERSION}.tar.gz
-tar -xvzf aspect-${ASPECT_VERSION}.tar.gz
+ASPECT_DIR="aspect-${ASPECT_VERSION}"
+ASPECT_TAR="${ASPECT_DIR}.tar.gz"
+
+
+# Download
+if [[ ! -f "${ASPECT_TAR}" ]]; then
+    echo ""
+    echo "Downloading ASPECT [ ${ASPECT_TAR} ] ..."
+    echo ""
+    wget https://github.com/geodynamics/aspect/releases/download/v${ASPECT_VERSION}/${ASPECT_TAR}
+    if [[ $? -ne 0 ]]; then
+	echo ""
+	echo "ERROR:  Source code for ASPECT version ${ASPECT_VERSION} could not be downloaded."
+	echo "        Make sure ${ASPECT_VERSION} is valid and available via ASPECT's GitHub page."
+	echo ""
+    fi
+else
+    echo ""
+    echo "File ${ASPECT_TAR} already exists, so skipping download."
+    echo ""
+fi
+
+
+# Extract
+if [[ ! -d "${ASPECT_DIR}" ]]; then
+    echo ""
+    echo "Extracting ${ASPECT_TAR} into ${ASPECT_DIR}..."
+    echo ""
+    tar -xvzf ${ASPECT_TAR}
+else
+    echo ""
+    echo "ERROR:  ${ASPECT_DIR} already exists and would be overwritten."
+    echo "        Rename or remove this directory and try again."
+    echo ""
+fi
+
+
+# Re-link if "link" argument is provided
+if [[ "$1" == "link" ]]; then
+    echo ""
+    echo "Creating link 'aspect' that links to ${ASPECT_DIR}"
+    echo ""
+    if [[ -L "aspect" ]]; then echo "Link 'aspect' already exists, so removing it and re-linking..." ; rm aspect; fi
+    ln -s ${ASPECT_DIR} aspect
+fi
