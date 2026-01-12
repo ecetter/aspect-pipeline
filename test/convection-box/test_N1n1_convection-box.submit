@@ -2,7 +2,7 @@
 
 #SBATCH -J test_convection-box
 #SBATCH -A open
-#SBATCH -p standard
+#SBATCH -p basic
 #SBATCH -t 1:00:00
 #SBATCH -N 1
 #SBATCH -n 1
@@ -44,9 +44,8 @@ module load intel/2025.3 mpi
 
 
 # Create and navigate to directory for this specific case
-TAG="results-N${SLURM_NNODES}-n${SLURM_NTASKS}"
-if [[ ! -d "${TAG}" ]]; then mkdir ${TAG}; fi
-cd ${TAG}
+TAG="N${SLURM_NNODES}-n${SLURM_NTASKS}"
+mkdir ${TAG} && cd ${TAG}
 
 
 # Run test

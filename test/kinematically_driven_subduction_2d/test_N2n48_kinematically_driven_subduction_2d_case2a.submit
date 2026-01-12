@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH -J test_convection-box
+#SBATCH -J test_kds2d
 #SBATCH -A open
 #SBATCH -p standard
 #SBATCH -t 1:00:00
-#SBATCH -N 1
-#SBATCH -n 1
+#SBATCH -N 2
+#SBATCH -n 48
 #SBATCH --mem 64G
 #SBATCH -o slurm-%x-%j.out
 
@@ -25,7 +25,7 @@ done
 
 # Specify the container to be used, the test to run, and the launch command
 CONTAINER="${REPO_BASE_DIR}/containers/additive-aspect.sif"   # container filename
-TEST="aspect /opt/src/aspect/cookbooks/convection-box/convection-box.prm"
+TEST="aspect /opt/src/aspect/cookbooks/kinematically_driven_subduction_2d/kinematically_driven_subduction_2d_case2a.prm"
 COMMAND="mpirun -n ${SLURM_NTASKS} apptainer exec ${CONTAINER} ${TEST}"
 
 
@@ -45,8 +45,8 @@ module load intel/2025.3 mpi
 
 # Create and navigate to directory for this specific case
 TAG="results-N${SLURM_NNODES}-n${SLURM_NTASKS}"
-if [[ ! -d "${TAG}" ]]; then mkdir ${TAG}; fi
-cd ${TAG}
+#if [[ ! -d "${TAG}" ]]; then mkdir ${TAG}; fi
+#cd ${TAG}
 
 
 # Run test
