@@ -3,9 +3,9 @@
 #SBATCH -J test_kds2d
 #SBATCH -A open
 #SBATCH -p standard
-#SBATCH -t 1:00:00
-#SBATCH -N 2
-#SBATCH -n 48
+#SBATCH -t 4:00:00
+#SBATCH -N 1
+#SBATCH -n 24
 #SBATCH --mem 64G
 #SBATCH -o slurm-%x-%j.out
 
@@ -25,7 +25,7 @@ done
 
 # Specify the container to be used, the test to run, and the launch command
 CONTAINER="${REPO_BASE_DIR}/containers/additive-aspect.sif"   # container filename
-TEST="aspect /opt/src/aspect/cookbooks/kinematically_driven_subduction_2d/kinematically_driven_subduction_2d_case1.prm"
+TEST="aspect /storage/group/ece5034/default/aspect-pipeline/test/kinematically_driven_subduction_2d/kinematically_driven_subduction_2d/kinematically_driven_subduction_2d_case1.prm"
 COMMAND="mpirun -n ${SLURM_NTASKS} apptainer exec ${CONTAINER} ${TEST}"
 
 
